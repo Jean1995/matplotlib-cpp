@@ -302,10 +302,10 @@ template <> struct select_npy_type<uint64_t> { const static NPY_TYPES type = NPY
 
 // Sanity checks; comment them out or change the numpy type below if you're compiling on
 // a platform where they don't apply
-static_assert(sizeof(long long) == 8);
-template <> struct select_npy_type<long long> { const static NPY_TYPES type = NPY_INT64; };
-static_assert(sizeof(unsigned long long) == 8);
-template <> struct select_npy_type<unsigned long long> { const static NPY_TYPES type = NPY_UINT64; };
+//static_assert(sizeof(long long) == 8);
+//template <> struct select_npy_type<long long> { const static NPY_TYPES type = NPY_INT64; };
+//static_assert(sizeof(unsigned long long) == 8);
+//template <> struct select_npy_type<unsigned long long> { const static NPY_TYPES type = NPY_UINT64; };
 // TODO: add int, long, etc.
 
 template<typename Numeric>
@@ -525,6 +525,7 @@ template <typename Numeric>
 void plot3(const std::vector<Numeric> &x,
                   const std::vector<Numeric> &y,
                   const std::vector<Numeric> &z,
+                  double alpha = 1.,
                   const std::map<std::string, std::string> &keywords =
                       std::map<std::string, std::string>())
 {
@@ -551,6 +552,20 @@ void plot3(const std::vector<Numeric> &x,
     if (!axis3dmod) { throw std::runtime_error("Error loading module mpl_toolkits.mplot3d!"); }
   }
 
+  static PyObject *axis = nullptr;
+  if(axis == nullptr) {
+    PyObject *fig = PyObject_CallObject(matplotlibcpp::detail::_interpreter::get().s_python_function_figure,
+                                        matplotlibcpp::detail::_interpreter::get().s_python_empty_tuple);
+
+    PyObject *gca_kwargs = PyDict_New();
+    PyDict_SetItemString(gca_kwargs, "projection", PyString_FromString("3d"));
+
+    PyObject *gca = PyObject_GetAttrString(fig, "gca");
+    if (!gca) throw std::runtime_error("No gca");
+    Py_INCREF(gca);
+    axis = PyObject_Call(gca, matplotlibcpp::detail::_interpreter::get().s_python_empty_tuple, gca_kwargs);
+  }
+
   assert(x.size() == y.size());
   assert(y.size() == z.size());
 
@@ -572,26 +587,10 @@ void plot3(const std::vector<Numeric> &x,
     PyDict_SetItemString(kwargs, it->first.c_str(),
                          PyString_FromString(it->second.c_str()));
   }
-
-  PyObject *fig =
-      PyObject_CallObject(detail::_interpreter::get().s_python_function_figure,
-                          detail::_interpreter::get().s_python_empty_tuple);
-  if (!fig) throw std::runtime_error("Call to figure() failed.");
-
-  PyObject *gca_kwargs = PyDict_New();
-  PyDict_SetItemString(gca_kwargs, "projection", PyString_FromString("3d"));
-
-  PyObject *gca = PyObject_GetAttrString(fig, "gca");
-  if (!gca) throw std::runtime_error("No gca");
-  Py_INCREF(gca);
-  PyObject *axis = PyObject_Call(
-      gca, detail::_interpreter::get().s_python_empty_tuple, gca_kwargs);
+  PyDict_SetItemString(kwargs, "alpha", PyFloat_FromDouble(alpha));
 
   if (!axis) throw std::runtime_error("No axis");
   Py_INCREF(axis);
-
-  Py_DECREF(gca);
-  Py_DECREF(gca_kwargs);
 
   PyObject *plot3 = PyObject_GetAttrString(axis, "plot");
   if (!plot3) throw std::runtime_error("No 3D line plot");
